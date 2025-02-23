@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>每日体温记录系统</title>
-    <!-- 引入 Supabase 客户端 -->
+    <title>多人体温记录系统</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -91,7 +90,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>每日体温记录系统</h2>
+        <h2>多人体温记录系统</h2>
         
         <div class="input-group">
             <input type="date" id="recordDate" required>
@@ -101,40 +100,46 @@
         </div>
 
         <div class="record-list" id="records">
-            <h3>全部历史记录 <span id="loading" class="loading">加载中...</span></h3>
+            <h3>全体历史记录 <span id="loading" class="loading">加载中...</span></h3>
         </div>
     </div>
 
     <script>
         // ================= 配置区 =================
-        // 从 Supabase 项目设置中获取以下信息
         const SUPABASE_URL = "https://lixyihduhknfmacjjoqn.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpeHlpaGR1aGtuZm1hY2pqb3FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAzMTUxNjAsImV4cCI6MjA1NTg5MTE2MH0.Y_xbnE3Em2y3gokl3r9bQU00e08WwplkJEyOCH9qGPs";
         // ==========================================
 
-        // 初始化 Supabase 客户端
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // 声明Supabase客户端变量
+        let supabase;
 
-        // 页面加载时初始化
+        // 页面加载初始化
         document.addEventListener('DOMContentLoaded', async () => {
+            // 初始化Supabase客户端
+            supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            
+            // 设置默认日期
+            document.getElementById('recordDate').value = new Date().toISOString().split('T')[0];
+            
+            // 加载数据并设置实时监听
             await loadRecords();
             setupRealtimeUpdates();
         });
 
-        // 保存记录到数据库
+        // 保存记录
         async function saveRecord() {
             const dateInput = document.getElementById('recordDate');
             const tempInput = document.getElementById('temperature');
             
-            // 验证输入
+            // 输入验证
             if (!dateInput.value || !tempInput.value) {
                 alert('请填写完整信息');
                 return;
             }
 
-            const temperature = parseFloat(tempInput.value).toFixed(1);
-            if (temperature < 35 || temperature > 45) {
-                alert('体温值应在35℃-45℃之间');
+            const temperature = parseFloat(tempInput.value);
+            if (isNaN(temperature) {
+                alert('请输入有效的体温值');
                 return;
             }
 
@@ -144,7 +149,7 @@
                     .from('temperature_records')
                     .insert([{
                         date: dateInput.value,
-                        temperature: temperature,
+                        temperature: temperature.toFixed(1),
                         device_info: navigator.userAgent.slice(0, 50)
                     }]);
 
@@ -155,22 +160,25 @@
                 tempInput.value = '';
             } catch (error) {
                 alert('保存失败: ' + error.message);
+                console.error('保存错误:', error);
             }
         }
 
-        // 设置实时更新监听
+        // 实时数据监听
         function setupRealtimeUpdates() {
             supabase
-                .channel('public:temperature_records')
+                .channel('temperature-updates')
                 .on('postgres_changes', {
                     event: '*',
                     schema: 'public',
                     table: 'temperature_records'
-                }, () => loadRecords())
+                }, async () => {
+                    await loadRecords();
+                })
                 .subscribe();
         }
 
-        // 加载并显示记录
+        // 加载记录
         async function loadRecords() {
             try {
                 const { data, error } = await supabase
@@ -184,10 +192,11 @@
                 document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 console.error('加载数据失败:', error);
+                alert('数据加载失败，请刷新页面');
             }
         }
 
-        // 更新界面显示
+        // 更新界面
         function updateUI(records) {
             const container = document.getElementById('records');
             container.innerHTML = '<h3>全体历史记录</h3>';
@@ -197,10 +206,7 @@
                 recordDiv.className = 'record-item';
                 
                 const submitDate = new Date(record.created_at);
-                const timeString = `
-                    ${submitDate.getFullYear()}-${pad(submitDate.getMonth()+1)}-${pad(submitDate.getDate())} 
-                    ${pad(submitDate.getHours())}:${pad(submitDate.getMinutes())}:${pad(submitDate.getSeconds())}
-                `;
+                const timeString = formatDateTime(submitDate);
 
                 recordDiv.innerHTML = `
                     <div>
@@ -217,7 +223,7 @@
             });
         }
 
-        // 删除记录（需要配置行级权限）
+        // 删除记录
         async function deleteRecord(recordId) {
             if (!confirm('确定要删除这条记录吗？')) return;
 
@@ -233,13 +239,18 @@
             }
         }
 
-        // 辅助函数：时间补零
+        // 辅助函数：格式化时间
+        function formatDateTime(date) {
+            return `
+                ${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} 
+                ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}
+            `;
+        }
+
+        // 辅助函数：补零操作
         function pad(n) {
             return n.toString().padStart(2, '0');
         }
-
-        // 设置默认日期为今天
-        document.getElementById('recordDate').value = new Date().toISOString().split('T')[0];
     </script>
 </body>
 </html>
