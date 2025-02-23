@@ -65,6 +65,14 @@
             border-radius: 4px;
             margin-left: 10px;
         }
+
+        .time-info {
+            font-size: 0.85em;
+            color: #666;
+            display: flex;
+            gap: 15px;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -100,6 +108,7 @@
             const record = {
                 id: Date.now(),
                 date,
+                submitTime: new Date().toISOString(),
                 temperature: temp.toFixed(1)
             };
 
@@ -118,30 +127,49 @@
             
             container.innerHTML = '<h3>历史记录</h3>';
             
-            records.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(record => {
+            records.sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime)).forEach(record => {
                 const div = document.createElement('div');
                 div.className = 'record-item';
+                
+                const submitDate = new Date(record.submitTime);
+                const timeString = `
+                    ${submitDate.getFullYear()}-${pad(submitDate.getMonth()+1)}-${pad(submitDate.getDate())} 
+                    ${pad(submitDate.getHours())}:${pad(submitDate.getMinutes())}:${pad(submitDate.getSeconds())}
+                `;
+
                 div.innerHTML = `
-                    <span>${record.date}</span>
-                    <span>${record.temperature}℃</span>
+                    <div>
+                        <div class="time-info">
+                            <span>测量日期：${record.date}</span>
+                            <span>记录时间：${timeString}</span>
+                        </div>
+                        <div>体温：${record.temperature}℃</div>
+                    </div>
                     <button class="delete-btn" onclick="deleteRecord(${record.id})">删除</button>
                 `;
                 container.appendChild(div);
             });
         }
 
-        // 删除记录
+        // 删除记录（新增确认对话框）
         function deleteRecord(id) {
-            let records = JSON.parse(localStorage.getItem('tempRecords'));
-            records = records.filter(record => record.id !== id);
-            localStorage.setItem('tempRecords', JSON.stringify(records));
-            loadRecords();
+            if (confirm('确定要删除这条记录吗？')) {
+                let records = JSON.parse(localStorage.getItem('tempRecords'));
+                records = records.filter(record => record.id !== id);
+                localStorage.setItem('tempRecords', JSON.stringify(records));
+                loadRecords();
+            }
         }
 
         // 清空输入
         function clearInputs() {
             document.getElementById('recordDate').value = '';
             document.getElementById('temperature').value = '';
+        }
+
+        // 时间补零函数
+        function pad(n) {
+            return n.toString().padStart(2, '0');
         }
 
         // 设置默认日期为今天
